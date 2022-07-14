@@ -25,6 +25,7 @@ import java.util.Objects;
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 
+//todo comment from reviewer: add logs to all vital places
 @Configuration
 public class UserDao extends AbstractMFlixDao {
 
@@ -55,6 +56,7 @@ public class UserDao extends AbstractMFlixDao {
      */
     public boolean addUser(User user) {
         //TODO > Ticket: Durable Writes -  you might want to use a more durable write concern here!
+        //todo comment from reviewer: firstly check if user exists
         try {
             usersCollection.insertOne(user);
             return true;
@@ -71,6 +73,7 @@ public class UserDao extends AbstractMFlixDao {
      * @return true if successful
      */
     public boolean createUserSession(String userId, String jwt) {
+        //todo comment from reviewer: firstly check if session for this user exists. 
         Bson updateFilter = new Document("user_id", userId);
         Bson setUpdate = Updates.set("jwt", jwt);
         UpdateOptions options = new UpdateOptions().upsert(true);
@@ -136,6 +139,7 @@ public class UserDao extends AbstractMFlixDao {
      * @return User object that just been updated.
      */
     public boolean updateUserPreferences(String email, Map<String, ?> userPreferences) {
+        //todo comment from reviewer: check if user exists
         if (Objects.isNull(userPreferences)) {
             throw new IncorrectDaoOperation("User preferences should not be null");
         }
@@ -144,6 +148,7 @@ public class UserDao extends AbstractMFlixDao {
         // update one document matching email.
         try {
             usersCollection.updateOne(user, updateObject);
+            //todo comment from reviewer: add situation handling if db was not updated
             return true;
         } catch (MongoWriteException ex) {
             throw new IncorrectDaoOperation(ex.getMessage());
