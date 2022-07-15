@@ -2,8 +2,10 @@ package mflix.api.daos;
 
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoWriteException;
+import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.DeleteResult;
@@ -13,6 +15,7 @@ import org.bson.Document;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
+import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,11 +57,15 @@ public class UserDao extends AbstractMFlixDao {
      * @return True if successful, throw IncorrectDaoOperation otherwise
      */
     public boolean addUser(User user) {
-        //TODO > Ticket: Durable Writes -  you might want to use a more durable write concern here!
         try {
+            if (!userExists(user.getEmail())) {
+                throw new RuntimeException("User with email " + user.getEmail() + " already exists");
+            }
             usersCollection.insertOne(user);
+            log.info("User with email {} has successfully been added", user.getEmail());
             return true;
         } catch (MongoWriteException ex) {
+            log.error("Exception happened during adding user", ex);
             throw new IncorrectDaoOperation(ex.getMessage());
         }
     }
@@ -75,9 +82,15 @@ public class UserDao extends AbstractMFlixDao {
         Bson setUpdate = Updates.set("jwt", jwt);
         UpdateOptions options = new UpdateOptions().upsert(true);
         try {
-            sessionsCollection.updateOne(updateFilter, setUpdate, options);
-            return true;
+            Session session = sessionsCollection.find(updateFilter).first();
+            if (Objects.isNull(session)) {
+                sessionsCollection.updateOne(updateFilter, setUpdate, options);
+                log.info("User session has successfully been crated");
+                return true;
+            }
+            throw new RuntimeException("Session for user with id " + userId + " already exists");
         } catch (MongoWriteException ex) {
+            log.error("Exception happened during user session creation", ex);
             throw new IncorrectDaoOperation(ex.getMessage());
         }
     }
@@ -115,13 +128,18 @@ public class UserDao extends AbstractMFlixDao {
      * @return true if user successfully removed
      */
     public boolean deleteUser(String email) {
+        if (!userExists(email)) {
+            throw new RuntimeException("User with email " + email + " doesn't exist");
+        }
         try {
             if (deleteUserSessions(email)) {
                 Document userDeleteFilter = new Document("email", email);
                 DeleteResult res = usersCollection.deleteOne(userDeleteFilter);
+                log.info("User with email {} has been deleted successfully", email);
                 return res.wasAcknowledged();
             }
         } catch (MongoWriteException ex) {
+            log.error("Exception happened during user deletion", ex);
             throw new IncorrectDaoOperation(ex.getMessage());
         }
         return false;
@@ -141,13 +159,23 @@ public class UserDao extends AbstractMFlixDao {
         }
         Bson user = new Document("email", email);
         Bson updateObject = Updates.set("preferences", userPreferences);
-        // update one document matching email.
+        if (userExists(email)) {
+            throw new RuntimeException("User with email " + email + " already exists");
+        }
         try {
             usersCollection.updateOne(user, updateObject);
+            log.info("User preferences have been updated successfully");
             return true;
         } catch (MongoWriteException ex) {
+            log.error("Exception happened during user preferences updating", ex);
             throw new IncorrectDaoOperation(ex.getMessage());
         }
+    }
+
+    private boolean userExists(String userEmail) {
+        Bson filter = Filters.eq(Filters.eq("email", userEmail));
+        User userToCheck = usersCollection.find(filter).first();
+        return userToCheck != null;
     }
 
 }

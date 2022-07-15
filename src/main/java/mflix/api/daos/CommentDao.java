@@ -81,8 +81,10 @@ public class CommentDao extends AbstractMFlixDao {
         }
         try {
             commentCollection.insertOne(comment);
+            log.info("Comment with id {} has been created", comment.getId());
             return comment;
         } catch (MongoWriteException ex) {
+            log.error("Exception happened during comment creation", ex);
             throw new IncorrectDaoOperation(ex.getMessage());
         }
     }
@@ -107,8 +109,10 @@ public class CommentDao extends AbstractMFlixDao {
                 Updates.set("date", new Date()));
         try {
             UpdateResult res = commentCollection.updateOne(filter, update);
+            log.info("Comment with id {} has been updated", commentId);
             return res.getMatchedCount() > 0;
         } catch (MongoWriteException ex) {
+            log.error("Exception happened during comment update", ex);
             throw new IncorrectDaoOperation(ex.getMessage());
         }
     }
@@ -124,10 +128,11 @@ public class CommentDao extends AbstractMFlixDao {
         Bson filter = Filters.and(Filters.eq("email", email),
                 Filters.eq("_id", new ObjectId(commentId)));
         try {
-
             DeleteResult res = commentCollection.deleteOne(filter);
+            log.info("Comment with id {} has been deleted", commentId);
             return res.getDeletedCount() == 1;
         } catch (MongoWriteException ex) {
+            log.error("Exception happened during comment deletion", ex);
             throw new IncorrectDaoOperation(ex.getMessage());
         }
     }
